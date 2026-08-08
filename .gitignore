@@ -1,0 +1,13 @@
+target/
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+*.ebin
+*.ebin.meta/
+.DS_Store
