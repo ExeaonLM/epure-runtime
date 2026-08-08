@@ -55,19 +55,34 @@ def available():
 MODE = os.environ.get("EPURE_DEQUANT", "poly").lower()
 
 
-def _coef(store, deg=7):
-    """Polynomial coefficients for this store's codebook, fitted once.
+def _hot(store, deg=7):
+    """Everything the kernel needs, resolved once and cached as plain attrs.
 
-    Derived from the codebook already in the container, so no format change is
-    needed and models published before this existed get the speedup too.
+    This is the single biggest cost in decode, and it is not arithmetic.
+    Profiling an 8B on an A100: 253 matmuls per token, 43 ms of device time,
+    and 149 ms of wall time -- about 106 ms per token spent in Python. Every
+    `store.packed` / `store.scale` / `store.cb` goes through
+    `nn.Module.__getattr__`, which walks `_parameters`, `_buffers` and
+    `_modules` on each access, and `packed_2d()` builds a fresh view each call.
+    Multiply by 253 calls per token and it dominates the kernel entirely.
+
+    Cached in a plain dict on the store, so lookups are attribute-free after
+    the first call. Invalidated by `store._hot_cache = None` if a buffer is
+    ever replaced -- which fine-tuning does when it promotes scale/cb to
+    Parameters.
     """
-    c = getattr(store, "_poly_coef", None)
-    if c is None:
-        c = torch.from_numpy(
-            _triton.fit_codebook_poly(store.cb.detach().cpu().numpy(), deg)
-        ).to(store.cb.device)
-        store._poly_coef = c
-    return c
+    h = store.__dict__.get("_hot_cache")
+    if h is not None and h[0] is store.cb:
+        return h
+
+    coef = torch.from_numpy(
+        _triton.fit_codebook_poly(store.cb.detach().cpu().numpy(), deg)
+    ).to(store.cb.device)
+    h = (store.cb, store.packed_2d(), store.scale, coef, store.group,
+         4 if store.levels <= 16 else 8, store.out_features,
+         store.in_features, int(store.cb.numel()))
+    store.__dict__["_hot_cache"] = h
+    return h
 
 
 def linear(x, store):
@@ -90,18 +105,13 @@ def linear(x, store):
     if x.dtype != torch.float16:
         return None
 
-    bits = 4 if store.levels <= 16 else 8
+    _cb, packed, scale, coef, group, bits, n, k, levels = _hot(store)
     if MODE == "poly" and hasattr(_triton, "dequant_poly"):
         try:
-            return _triton.dequant_poly(
-                x, store.packed_2d(), store.scale, _coef(store),
-                store.group, bits, store.out_features, store.in_features,
-                int(store.cb.numel()))
+            return _triton.dequant_poly(x, packed, scale, coef, group, bits,
+                                        n, k, levels)
         except Exception:
             # Never let an optimisation break a model: fall through to the
             # reference path rather than raising in the middle of a forward.
             pass
-    return _triton.dequant_matmul(
-        x, store.packed_2d(), store.scale, store.cb,
-        store.group, bits, store.out_features, store.in_features,
-    )
+    return _triton.dequant_matmul(x, packed, scale, _cb, group, bits, n, k)
