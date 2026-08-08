@@ -147,7 +147,7 @@ fn dequant_matmul<'py>(
 
     let arr = ndarray::Array2::from_shape_vec((m, n), transposed)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-    Ok(arr.to_pyarray_bound(py))
+    Ok(arr.to_pyarray(py))
 }
 
 /// Threads rayon will use — reported so the caller can confirm the box is busy.
