@@ -11,12 +11,19 @@ correct, so a plain ``pip install`` still works with no toolchain.
 import numpy as np
 import torch
 
-try:                                    # built via `cargo build --release`
-    import epure_kernel as _rust
+try:
+    # Ships inside the wheel as `epure.epure_kernel` (maturin builds it there).
+    # The bare `epure_kernel` fallback covers a local `cargo build` during
+    # development, where the artifact is dropped on the path instead.
+    from .. import epure_kernel as _rust
     HAVE_RUST = True
 except ImportError:                     # pragma: no cover - depends on build
-    _rust = None
-    HAVE_RUST = False
+    try:
+        import epure_kernel as _rust
+        HAVE_RUST = True
+    except ImportError:
+        _rust = None
+        HAVE_RUST = False
 
 
 def available():

@@ -1,14 +1,23 @@
+# Standalone crate. Without this empty table, cargo walks up the directory tree
+# and adopts any `Cargo.toml` it finds above us as a workspace root — which
+# breaks the build depending on where the repo happens to be checked out.
+[workspace]
+
 [package]
 name = "epure_kernel"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "epure_kernel"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"] }
+# abi3-py39 builds ONE wheel per platform instead of one per Python version:
+# 5 platforms rather than 5 x 6 = 30 artifacts, and a wheel built today keeps
+# working on Python versions released later.
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"] }
 numpy = "0.22"
 rayon = "1.10"
 half = "2.4"
@@ -18,4 +27,7 @@ ndarray = "0.16"
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
+# `panic = "abort"` was here and had to go. PyO3 converts a Rust panic into a
+# Python exception by unwinding; with abort, any panic in the kernel takes the
+# whole interpreter down instead — a bad index would kill a user's serving
+# process with no traceback rather than raising.

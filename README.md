@@ -97,16 +97,53 @@ pip install 'epure-runtime[audio]'      # + speech models
 Python ≥ 3.9. CPU works out of the box; CUDA support activates automatically
 when a GPU and Triton are present.
 
-### Building the CPU kernel
+**You do not need Rust.** The fused CPU kernel is written in Rust and ships
+*compiled inside the wheel*, so `pip install` gets the fast path with no cargo,
+no compiler and no toolchain. Wheels are abi3, one per platform, covering every
+Python from 3.9 up.
 
-The fused Rust kernel is what makes CPU inference competitive. A pure-PyTorch
-fallback runs without it, more slowly.
+Check which backend you got:
+
+```python
+from epure.kernels import cpu, cuda
+print(cpu.available(), cpu.threads())   # True 8
+print(cuda.available())
+```
+
+If `cpu.available()` is `False` there is no wheel for your platform and the
+runtime is falling back to pure PyTorch — correct, but slower. Open an issue
+with your platform and we will add it to the build matrix.
+
+<details>
+<summary>Building the kernel yourself (contributors only)</summary>
 
 ```bash
-cd kernel
-PYO3_PYTHON=$(which python) RUSTFLAGS="-C target-cpu=native" cargo build --release
-cp target/release/libepure_kernel.so ../epure/epure_kernel.so
+pip install maturin
+maturin develop --release
 ```
+
+</details>
+
+## Examples
+
+Runnable scripts in [`examples/`](examples/):
+
+| | |
+|---|---|
+| [`01_generate.py`](examples/01_generate.py) | generation, with resident memory printed |
+| [`02_finetune.py`](examples/02_finetune.py) | training in the compressed state, indices verified frozen |
+| [`03_benchmark.py`](examples/03_benchmark.py) | footprint, throughput, accuracy — model-card numbers |
+
+## API
+
+| | |
+|---|---|
+| `load(path, device=None)` | `.ebin` path or HF repo id → `(model, tokenizer)` |
+| `apply_to(model, path, ...)` | swap an existing module tree's weights for packed stores |
+| `describe(path)` | container summary, as used by `epure info` |
+| `make_trainable(model, mode)` | `"scale"` · `"cb"` · `"both"` → `(params, count)` |
+| `snapshot_indices(model)` / `verify_frozen(model, snap)` | prove indices never moved |
+| `resolve(path)` | repo id → local file, downloading if needed |
 
 ## Models
 

@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
 
 [project]
 name = "epure-runtime"
@@ -11,7 +11,15 @@ requires-python = ">=3.9"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Akpalu Elliot Elikplim", email = "elliotakpalu@gmail.com" }]
-keywords = ["inference", "llm", "runtime", "edge", "cpu"]
+keywords = ["inference", "llm", "runtime", "edge", "cpu", "quantization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 
 dependencies = [
     "numpy>=1.24",
@@ -29,9 +37,18 @@ audio = ["soundfile>=0.12", "librosa>=0.10"]
 [project.urls]
 Homepage = "https://github.com/ExeaonLM/epure-runtime"
 Models = "https://huggingface.co/Exeaon"
+Issues = "https://github.com/ExeaonLM/epure-runtime/issues"
 
 [project.scripts]
 epure = "epure.cli:main"
 
-[tool.setuptools.packages.find]
-include = ["epure*"]
+[tool.maturin]
+# The compiled kernel lands *inside* the package as `epure.epure_kernel`, so a
+# plain `pip install` gets the fast path with no cargo, no compiler, no
+# toolchain. That is the whole point of shipping wheels rather than an sdist:
+# without it every user silently falls back to the slow pure-PyTorch path and
+# concludes the runtime is slow.
+manifest-path = "kernel/Cargo.toml"
+module-name = "epure.epure_kernel"
+python-source = "."
+features = ["pyo3/extension-module"]
