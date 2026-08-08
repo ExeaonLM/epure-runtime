@@ -272,6 +272,7 @@ def load(path, device=None):
 
     Returns (model, tokenizer).
     """
+    import transformers
     from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
     path = resolve(path)
@@ -289,9 +290,21 @@ def load(path, device=None):
     # Parameters go to meta since every one is overwritten; buffers must stay
     # real, because values computed at init (rotary tables) are not stored in
     # the file and fail at the first forward if left on meta.
+    # `config.architectures[0]` names the exact class the model was saved as -
+    # "Qwen3ForCausalLM", "WhisperForConditionalGeneration",
+    # "T5ForConditionalGeneration". Resolving it directly means a family we have
+    # not seen loads without a change here, where hardcoding
+    # AutoModelForCausalLM silently excluded every encoder-decoder and every
+    # audio model.
+    arch = (getattr(cfg, "architectures", None) or [None])[0]
+    factory = getattr(transformers, arch, None) if arch else None
+    if factory is None:
+        factory = AutoModelForCausalLM
+
     from accelerate import init_empty_weights
     with init_empty_weights(include_buffers=False):
-        model = AutoModelForCausalLM.from_config(cfg)
+        model = (factory.from_config(cfg) if factory is AutoModelForCausalLM
+                 else factory(cfg))
     model = model.to(dtype=torch.float16 if device != "cpu" else torch.float32)
 
     apply_to(model, path, device=device, cfg=cfg)
