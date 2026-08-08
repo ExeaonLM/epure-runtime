@@ -5,7 +5,7 @@
 
 [package]
 name = "epure_kernel"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -17,8 +17,8 @@ crate-type = ["cdylib"]
 # abi3-py39 builds ONE wheel per platform instead of one per Python version:
 # 5 platforms rather than 5 x 6 = 30 artifacts, and a wheel built today keeps
 # working on Python versions released later.
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"] }
-numpy = "0.22"
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+numpy = "0.29"
 rayon = "1.10"
 half = "2.4"
 ndarray = "0.16"
