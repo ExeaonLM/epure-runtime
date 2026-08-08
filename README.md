@@ -153,6 +153,13 @@ maturin develop --release
 | **Nunya** | a single GPU |
 | **Kese** | server, multi-GPU, MoE |
 
+## Version history
+
+Measured numbers and what broke, in [CHANGELOG.md](CHANGELOG.md). Notable:
+0.2.2 took batch-1 decode from 6.7 to 11.2 tok/s on an 8B by fixing host-side
+dispatch, and 0.2.1 fixed a release that shipped with the CUDA path silently
+dead.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).
