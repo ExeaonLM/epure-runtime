@@ -129,7 +129,7 @@ if HAVE_TRITON:
         A100. Marlin avoids the problem by making dequantization arithmetic, but
         that only works for an affine int4 grid.
 
-E-PURE codebooks are smooth by construction, so they can be
+        E-PURE codebooks are smooth by construction, so they can be
         approximated by a low-order polynomial in the index instead. Measured
         across 253 codebooks from a shipped 4B model, degree 7 reproduces them
         to 1.3% of the spacing between adjacent levels, against a quantization
