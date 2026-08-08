@@ -1,2 +1,5 @@
-# Every path requires review from the maintainers.
+# Every path requires review from the maintainers team.
+# The team exists at https://github.com/orgs/ExeaonLM/teams/maintainers and has
+# push access to this repository - a CODEOWNERS entry pointing at a team that
+# lacks push access is silently ignored by GitHub rather than reported.
 * @ExeaonLM/maintainers
