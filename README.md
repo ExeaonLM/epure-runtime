@@ -124,15 +124,13 @@ maturin develop --release
 
 </details>
 
-## Examples
-
-Runnable scripts in [`examples/`](examples/):
+## Documentation
 
 | | |
 |---|---|
-| [`01_generate.py`](examples/01_generate.py) | generation, with resident memory printed |
-| [`02_finetune.py`](examples/02_finetune.py) | training in the compressed state, indices verified frozen |
-| [`03_benchmark.py`](examples/03_benchmark.py) | footprint, throughput, accuracy — model-card numbers |
+| [Inference](inference/) | running models, choosing a backend, what to expect |
+| [Fine-tuning](fine-tuning/) | training in the compressed state, and proving it stayed compressed |
+| [Benchmarks](benchmarks/) | the measurement harness, and [published results](benchmarks/results/) |
 
 ## API
 
