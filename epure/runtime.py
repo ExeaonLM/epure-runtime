@@ -227,6 +227,15 @@ def apply_to(model, path, device="cpu", cfg=None, verbose=True):
             elif isinstance(target, nn.Linear):
                 _set(model, mod_name, PackedLinear(store, getattr(target, "bias", None)))
                 n_packed += 1
+            elif isinstance(target, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+                # A convolution weight is rank 3 or 4 and would otherwise fall
+                # into the mixture-of-experts branch below, which assumes the
+                # leading axis indexes experts. Whisper's audio frontend is the
+                # live case: conv1.weight is (1280, 128, 3), where the last axis
+                # is a kernel of 3 - smaller than any sensible group size, so it
+                # cannot be usefully quantized either. Hand it back dense.
+                _assign(model, name, store.materialize().to(device))
+                n_dense += 1
             elif len(t["shape"]) == 3:
                 owner_path, _, attr = mod_name.rpartition(".")
                 owner = _get(model, owner_path) if owner_path else model
