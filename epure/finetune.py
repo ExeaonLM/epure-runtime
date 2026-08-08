@@ -70,6 +70,10 @@ def make_trainable(model, mode="both", verbose=True):
         if isinstance(cur, nn.Parameter):
             cur.requires_grad_(True)
             return cur
+        # Any cached hot-path tuple holds the OLD tensors; drop it or the
+        # kernel keeps multiplying by pre-training weights while the optimizer
+        # updates tensors nothing reads.
+        store.__dict__.pop("_hot_cache", None)
         store._buffers.pop(attr, None)
         setattr(store, attr, nn.Parameter(cur.detach().float().clone(),
                                           requires_grad=True))
