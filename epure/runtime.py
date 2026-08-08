@@ -23,6 +23,13 @@ from .kernels import cuda as cuda_kernel
 
 _BUFFER_CACHE = {}
 
+# Rows above which the dense path is used on CUDA. The crossover between "we
+# read fewer bytes" and "cuBLAS has more arithmetic to work with" sits between
+# batch 1 and batch 8 on an A100; 8 is the conservative end of that, and it is
+# tunable because the crossover moves with model shape and card.
+# Set EPURE_DENSE_ABOVE=999999 to always keep the small footprint.
+_DENSE_ABOVE = int(os.environ.get("EPURE_DENSE_ABOVE", "8"))
+
 
 def _pack4(idx, levels):
     """Two 4-bit indices per byte, up to 16 levels.
@@ -93,7 +100,21 @@ class PackedLinear(nn.Module):
         if len(s.shape) == 2:
             out = None
             if x.is_cuda:
-                out = cuda_kernel.linear(x, s)
+                # Which path wins depends on batch size, and it flips.
+                #
+                # Measured, Exeaon1-Nunya-8B on an A100: the fused kernel gives
+                # 11.2 tok/s at batch 1 against 6.7 for materialize, because
+                # decode is bandwidth-bound and we read a quarter of the bytes.
+                # At batch 8 it gives 28 against 52, because there is now enough
+                # arithmetic intensity for cuBLAS to dominate and dequantization
+                # is pure overhead on top.
+                #
+                # Materializing costs memory (11.3 GB vs 8.0 GB peak on that
+                # model), which is the thing this format exists to avoid -- so
+                # the default keeps the fused path unless the batch is large
+                # enough that the speed difference clearly outweighs it.
+                if x.reshape(-1, x.shape[-1]).shape[0] < _DENSE_ABOVE:
+                    out = cuda_kernel.linear(x, s)
             elif s.levels <= 16:
                 out = cpu_kernel.linear(x, s, _BUFFER_CACHE)
             if out is not None:
