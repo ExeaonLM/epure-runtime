@@ -58,26 +58,39 @@ def make_trainable(model, mode="both", verbose=True):
     for p in model.parameters():
         p.requires_grad_(False)
 
-    params, n_tensors = [], 0
+    def _promote(store, attr):
+        """Buffer -> Parameter, once. Idempotent on purpose.
+
+        A tied lm_head shares one store with the embedding, so the same store
+        is reached twice; `del store._buffers[attr]` raised KeyError the second
+        time, and every tied model - which is most small ones - could not be
+        fine-tuned at all.
+        """
+        cur = getattr(store, attr)
+        if isinstance(cur, nn.Parameter):
+            cur.requires_grad_(True)
+            return cur
+        store._buffers.pop(attr, None)
+        setattr(store, attr, nn.Parameter(cur.detach().float().clone(),
+                                          requires_grad=True))
+        return getattr(store, attr)
+
+    params, seen = [], set()
     for _, store in packed_weights(model):
-        # Buffers cannot carry gradients; re-register as parameters. The packed
-        # indices stay a buffer and stay frozen.
+        if id(store) in seen:        # tied modules share a store; count once
+            continue
+        seen.add(id(store))
+        # Indices stay buffers and stay frozen.
         if mode in ("scale", "both"):
-            sc = store.scale.detach().float().clone()
-            del store._buffers["scale"]
-            store.scale = nn.Parameter(sc, requires_grad=True)
-            params.append(store.scale)
+            params.append(_promote(store, "scale"))
         if mode in ("codebook", "both"):
-            cb = store.cb.detach().float().clone()
-            del store._buffers["cb"]
-            store.cb = nn.Parameter(cb, requires_grad=True)
-            params.append(store.cb)
-        n_tensors += 1
+            params.append(_promote(store, "cb"))
+    n_tensors = len(seen)
 
     n_train = sum(p.numel() for p in params)
+    _uniq = {id(s): s for _, s in packed_weights(model)}.values()
     n_total = n_train + sum(
-        s.packed.numel() * (2 if s.levels <= 16 else 1)
-        for _, s in packed_weights(model))
+        s.packed.numel() * (2 if s.levels <= 16 else 1) for s in _uniq)
     if verbose:
         print(f"  mode {mode}: {n_tensors} packed tensors, "
               f"{n_train/1e6:.2f}M trainable "
@@ -86,8 +99,17 @@ def make_trainable(model, mode="both", verbose=True):
 
 
 def snapshot_indices(model):
-    """Checksum every index buffer, so drift can be proven absent later."""
-    return {name: int(store.packed.sum().item())
+    """Fingerprint every index buffer, so drift can be proven absent later.
+
+    Hashes the bytes rather than summing them. A sum collides trivially -- swap
+    two indices and it is unchanged -- so it could report "frozen" for a model
+    whose indices had in fact moved, which is the exact failure this is meant
+    to catch.
+    """
+    import hashlib
+
+    return {name: hashlib.blake2b(store.packed.detach().cpu().numpy().tobytes(),
+                                  digest_size=16).hexdigest()
             for name, store in packed_weights(model)}
 
 
