@@ -1,0 +1,26 @@
+name: Platform support
+description: No wheel for your platform, or the compiled kernel is missing
+labels: [platform]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If `epure.kernels.cpu.available()` is `False`, the runtime is falling
+        back to pure PyTorch. It still works, but gives up the speed advantage.
+        Tell us the platform and we will add it to the build matrix.
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: "python -c \"import platform; print(platform.platform(), platform.machine())\""
+    validations: { required: true }
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+    validations: { required: true }
+  - type: textarea
+    id: install
+    attributes:
+      label: Install output
+      render: shell
