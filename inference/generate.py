@@ -33,6 +33,11 @@ t0 = time.time()
 model, tok = load(MODEL)
 print(f"  loaded {MODEL} in {time.time()-t0:.1f}s on {model.device}")
 
+# Instruction-tuned models need their chat template; without it Qwen3 answers
+# a plain question with a run of digits.
+if getattr(tok, "chat_template", None):
+    PROMPT = tok.apply_chat_template([{"role": "user", "content": PROMPT}],
+                                     tokenize=False, add_generation_prompt=True)
 ids = tok(PROMPT, return_tensors="pt").input_ids.to(model.device)
 t0 = time.time()
 with torch.no_grad():

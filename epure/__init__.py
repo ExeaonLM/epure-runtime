@@ -26,7 +26,7 @@ from .runtime import (
     resolve,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "load", "apply_to", "resolve", "describe", "extras", "read_header",
