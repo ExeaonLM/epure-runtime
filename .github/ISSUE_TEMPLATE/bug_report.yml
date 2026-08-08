@@ -1,0 +1,29 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: The smallest script or command that shows it.
+      render: shell
+    validations: { required: true }
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: "Output of: python -c \"import epure,platform,torch; from epure.kernels import cpu,cuda; print(epure.__version__, platform.platform(), torch.__version__, cpu.available(), cuda.available())\""
+      render: shell
+    validations: { required: true }
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: Exeaon/Exeaon-Dzo-1.7B

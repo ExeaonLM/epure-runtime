@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Model questions
+    url: https://huggingface.co/Exeaon
+    about: Questions about a specific published model belong on its model card.
+  - name: Compression method
+    url: https://github.com/ExeaonLM/epure-runtime/blob/main/CONTRIBUTING.md
+    about: The compressor is not part of this repository. See CONTRIBUTING.
