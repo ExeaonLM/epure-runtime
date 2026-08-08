@@ -254,6 +254,16 @@ def apply_to(model, path, device="cpu", cfg=None, verbose=True):
 
     if cfg is not None and getattr(cfg, "tie_word_embeddings", False) and embed_store:
         _set(model, "lm_head", PackedLinear(embed_store))
+        # Tying is done here, by hand. Leave the config flag set and anything
+        # that later calls `tie_weights()` - lm_eval does - goes looking for
+        # `model.embed_tokens.weight` as a Parameter. Ours is a property on a
+        # packed module, so the lookup raises with "neither a parameter, buffer,
+        # nor extra state" and the model cannot be evaluated at all.
+        cfg.tie_word_embeddings = False
+        if hasattr(model, "config"):
+            model.config.tie_word_embeddings = False
+        if verbose:
+            print("  tied lm_head -> embedding store")
     if holders:
         model._epure_holders = holders
     if verbose:
