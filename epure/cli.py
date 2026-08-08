@@ -24,6 +24,22 @@ def cmd_info(args):
     return 0
 
 
+def build_prompt(tok, text, raw=False):
+    """Wrap a prompt in the model's chat template when it has one.
+
+    Instruction-tuned models are trained to see their template and produce
+    degenerate output without it -- Qwen3 answers "In one sentence, what is
+    quantization?" with a run of digits when fed the bare string. Users type
+    instructions, not completions, so the template is the right default and
+    --raw is the escape hatch for base models and completion prompts.
+    """
+    if raw or not getattr(tok, "chat_template", None):
+        return text
+    return tok.apply_chat_template(
+        [{"role": "user", "content": text}],
+        tokenize=False, add_generation_prompt=True)
+
+
 def cmd_run(args):
     from .runtime import load
 
@@ -35,7 +51,8 @@ def cmd_run(args):
     if prompt == "-":
         prompt = sys.stdin.read()
 
-    ids = tok(prompt, return_tensors="pt").input_ids.to(model.device)
+    ids = tok(build_prompt(tok, prompt, raw=args.raw),
+              return_tensors="pt").input_ids.to(model.device)
     t0 = time.time()
     out = model.generate(
         ids,
@@ -103,6 +120,8 @@ def main(argv=None):
     r.add_argument("--max-new-tokens", type=int, default=256)
     r.add_argument("--temperature", type=float, default=0.6)
     r.add_argument("--top-p", type=float, default=0.95)
+    r.add_argument("--raw", action="store_true",
+                   help="send the prompt verbatim, without the chat template")
     r.set_defaults(fn=cmd_run)
 
     i = sub.add_parser("info", parents=[common], help="describe a container")
