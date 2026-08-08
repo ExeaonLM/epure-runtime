@@ -18,12 +18,32 @@ import os
 
 import torch
 
+IMPORT_ERROR = None
+
 try:
     from . import _triton
     HAVE_TRITON = _triton.HAVE_TRITON
-except Exception:                       # pragma: no cover - triton optional
+except Exception as _exc:               # pragma: no cover - triton optional
+    # Distinguish "Triton is not installed" from "our kernel module is broken".
+    # A bare except made these identical, and a kernel that failed to compile
+    # looked exactly like a CPU-only machine: every model silently fell back to
+    # materializing, and a release shipped with the CUDA path dead while the
+    # benchmarks reported plausible-looking numbers.
     _triton = None
     HAVE_TRITON = False
+    IMPORT_ERROR = _exc
+    try:
+        import triton as _t                      # noqa: F401
+        import torch as _torch
+        if _torch.cuda.is_available():
+            import warnings
+            warnings.warn(
+                "epure: Triton and CUDA are present but the fused kernel "
+                f"failed to load ({type(_exc).__name__}: {_exc}). Falling back "
+                "to the slow path. This is a bug, not a missing dependency.",
+                RuntimeWarning, stacklevel=2)
+    except ImportError:
+        pass                                     # genuinely no Triton
 
 
 def available():
