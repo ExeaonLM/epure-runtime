@@ -7,6 +7,44 @@ no measurement behind it does not appear here.
 This file describes the **runtime**. The compressor is not part of this package
 and its internals are not documented here.
 
+## 0.2.4
+
+**Run the model in the precision it was trained in.**
+
+`load()` cast every model to fp16 on GPU, and `apply_to()` then restored each
+dense tensor as fp16 as well. Both ignored what the checkpoint declared.
+
+fp16 and bf16 are the same width but not the same range: bf16 keeps fp32's
+exponent and fp16 stops at 65504. A bf16-trained model can therefore hold
+activations that do not exist in fp16, and casting down overflows them rather
+than rounding them.
+
+Measured on a 32B bf16 checkpoint. The first non-finite value appeared at
+`model.layers.2.mlp.down_proj` -- Inf across a full 5120-wide hidden vector, on
+a prompt of ordinary length. Softmax turned those into NaN, and argmax over NaN
+returns index 0, so the model answered "the first option" to every question:
+
+| benchmark | before | after |
+|---|---|---|
+| ARC-Challenge | 24.33 | 57.00 |
+| ARC-Easy | 24.33 | 82.67 |
+| HellaSwag | 69.00 | 69.67 |
+| PIQA | 49.33 | 83.00 |
+| **retention vs base** | **57.3%** | **100.2%** |
+
+24.33 is chance on a four-choice task and 49.33 is chance on a two-choice one,
+so the failure looked like quantization damage rather than a dtype bug. It only
+appeared on longer inputs -- short prompts stayed inside fp16 range, generated
+fluent text, and reported a healthy model.
+
+Both call sites now follow the checkpoint. `apply_to` infers the dtype from the
+model it is filling rather than hardcoding one, so the two cannot disagree
+again. Where a checkpoint asks for bf16 on a GPU without bf16 support, the
+runtime uses fp32: fp32 costs memory, fp16 costs correctness.
+
+Smaller models were unaffected in practice -- their activations stay within
+fp16 range -- so this changes no published number below 32B.
+
 ## 0.2.3
 
 **Batch-size-aware dispatch on CUDA.**
